@@ -203,27 +203,25 @@ def evaluate_centroid_separation(
     }
 
 if __name__ == '__main__':
-    
-    base_path = '/home/edofroses/ecg_fm/shap_filtered_datasets'
-    output_dir = '/home/edofroses/ecg_fm/clustering_metrics_results_labels'
-    
+
+    label_column = 'CD'
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_path = os.path.join(script_dir, 'Data', 'shap_filtered_datasets', label_column)
+    output_dir = os.path.join(script_dir, 'Results', f'clustering_metrics_results_labels_{label_column}')
+
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Setup logging to file and terminal
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(output_dir, f'clustering_evaluation_log_{timestamp}.txt')
     logger = Logger(log_file)
     sys.stdout = logger
-    
+
     datasets = ['chapman_ningbo', 'ptbxl', 'cod15', 'georgia']
-    models_conf = ['CD_COD15_ECG-FM_nn_10perc_lst',
-                   'CD_COD15_ECG-JEPA_random_forest_10perc_max', 
-                   'CD_COD15_hubert_l_logistic_regression_10perc_lst', 
-                   'CD_COD15_ECGFounder_logistic_regression_10perc_direct', 
-                   'CD_COD15_hubert_b_xgboost_10perc_lst', 
-                   'CD_COD15_hubert_s_xgboost_10perc_lst']
-    
+    models_conf = sorted(model_conf_path for model_conf_path in os.listdir(base_path)
+                          if os.path.isdir(os.path.join(base_path, model_conf_path)))
+
     # List to store all results
     all_results = []
     
@@ -246,12 +244,12 @@ if __name__ == '__main__':
             
             try:
                 # Load data
-                csv_path = os.path.join(base_path, f'{model_conf}/{dataset}_CD_dataset.csv')
+                csv_path = os.path.join(base_path, f'{model_conf}/{dataset}_{label_column}_dataset.csv')
                 datas = pd.read_csv(csv_path, header=0)
-                
+
                 feature_col = [col for col in datas.columns if 'feature_' in col]
                 features = datas[feature_col].to_numpy()
-                labels = datas['CD'].to_numpy()
+                labels = datas[label_column].to_numpy()
                 
                 n_samples = len(labels)
                 n_features = len(feature_col)
@@ -259,7 +257,7 @@ if __name__ == '__main__':
                 n_class_1 = np.sum(labels == 1)
                 
                 print(f"    • Samples: {n_samples} | Features: {n_features}")
-                print(f"    • Class distribution: CD=0: {n_class_0} ({n_class_0/n_samples*100:.1f}%), CD=1: {n_class_1} ({n_class_1/n_samples*100:.1f}%)")
+                print(f"    • Class distribution: {label_column}=0: {n_class_0} ({n_class_0/n_samples*100:.1f}%), {label_column}=1: {n_class_1} ({n_class_1/n_samples*100:.1f}%)")
                 
                 # Initialize result dictionary
                 result = {

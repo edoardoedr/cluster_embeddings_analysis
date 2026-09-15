@@ -43,44 +43,56 @@ Ogni riga del CSV = un campione (osservazione) = un embedding + la sua etichetta
 
 ### 1.2 Organizzazione delle cartelle e path
 
-Entrambi gli script leggono i CSV da una struttura a cartelle
-`base_path/<model_conf>/<file>.csv`, dove ogni sottocartella di `base_path`
-rappresenta **una configurazione di modello/pipeline** (es. un particolare
-foundation model + tecnica di feature selection, tipo
-`CD_COD15_ECG-FM_nn_10perc_lst`).
+Entrambi gli script leggono i CSV da un'unica struttura a cartelle dentro
+`Data/`, path calcolati **relativamente alla posizione dello script**
+(`script_dir`, non serve lanciarli da una directory specifica):
+
+```
+Data/shap_filtered_datasets/<LABEL>/<model_conf>/<dataset>_<LABEL>_dataset.csv
+```
+
+dove `<LABEL>` è la colonna target (es. `CD`, `AF`, `SB`, `STach`) e ogni
+`<model_conf>` è una sottocartella che rappresenta **una configurazione di
+modello/pipeline** (es. `ECG-FM`, `HuBERT-ECG_base`, ...). In entrambi gli
+script i `model_conf` vengono **scoperti automaticamente** elencando le
+sottocartelle di `base_path` — non serve editarli a mano.
+
+I dati grezzi (non ordinati) possono restare in `Data/Features_new/` con
+nome piatto `<DATASET>_<MODEL>_<LABEL>.csv`: lo script di utilità
+[`organize_data.py`](organize_data.py) li copia (senza toccare gli originali)
+nella struttura a cartelle sopra descritta.
 
 **`calculate_clusters_embedding_labels.py`**
+```python
+label_column = 'CD'
+base_path = script_dir / 'Data' / 'shap_filtered_datasets' / label_column
 ```
-base_path = '/home/edofroses/ecg_fm/shap_filtered_datasets'
-```
-- Legge, per ogni `model_conf` in una lista fissa (`models_conf`) e per ogni
-  `dataset` in `['chapman_ningbo', 'ptbxl', 'cod15', 'georgia']`, il file:
-  ```
-  {base_path}/{model_conf}/{dataset}_CD_dataset.csv
-  ```
-- Colonna etichetta attesa: **`CD`** (binaria, 0/1).
-
-**`calculate_clusters_embedding_dataset.py`**
-```
-label_column = 'AF'
-base_path = f'/home/edofroses/ecg_fm/shap_filtered_datasets/{label_column}'
-```
-- `models_conf` viene **scoperto automaticamente** elencando le sottocartelle
-  di `base_path`.
-- Per ogni `model_conf` e per ogni `dataset` in
-  `['chapman_ningbo', 'cod15', 'georgia']`, legge il file:
+- Per ogni `model_conf` (auto-scoperto) e per ogni `dataset` in
+  `['chapman_ningbo', 'ptbxl', 'cod15', 'georgia']`, legge:
   ```
   {base_path}/{model_conf}/{dataset}_{label_column}_dataset.csv
   ```
-- Colonna etichetta attesa: il nome contenuto in `label_column` (es. `AF`,
-  binaria 0/1) — usata sia come label di classe sia (implicitamente) come
-  "sotto-etichetta" all'interno di ogni dataset per l'analisi dataset+label.
+- Confronta le due classi (`label_column`=0 vs 1) **all'interno di ciascun
+  dataset**.
 
-> Nota: i path (`base_path`, `output_dir`, la lista `datasets`, la lista/
-> scoperta di `models_conf`, il nome della label) sono **hard-coded** nel blocco
-> `if __name__ == '__main__':` di ciascun file. Per usare questi script sui
-> propri dati vanno modificati direttamente questi valori in testa al blocco
-> main.
+**`calculate_clusters_embedding_dataset.py`**
+```python
+label_column = 'AF'
+base_path = script_dir / 'Data' / 'shap_filtered_datasets' / label_column
+```
+- Per ogni `model_conf` (auto-scoperto) e per ogni `dataset` in
+  `['chapman_ningbo', 'cod15', 'georgia']`, legge:
+  ```
+  {base_path}/{model_conf}/{dataset}_{label_column}_dataset.csv
+  ```
+- Confronta i **dataset tra loro** (e le combinazioni dataset×label), non le
+  classi all'interno di un singolo dataset.
+
+> Nota: `label_column` è hard-coded in testa al blocco `if __name__ ==
+> '__main__':` di ciascun file (`'CD'` per il primo script, `'AF'` per il
+> secondo) — per analizzare un'altra label (es. `SB`, `STach`) basta cambiare
+> quella riga, a patto che esista la relativa sottocartella in
+> `Data/shap_filtered_datasets/`.
 
 ### 1.3 Struttura dati in memoria
 
@@ -174,7 +186,7 @@ Entrambi gli script:
 
 ### 4.1 Output di `calculate_clusters_embedding_labels.py`
 
-Nella cartella `output_dir` (`/home/edofroses/ecg_fm/clustering_metrics_results_labels`):
+Nella cartella `output_dir` (`Results/clustering_metrics_results_labels_<label_column>/`):
 
 | File | Contenuto |
 |---|---|
@@ -194,7 +206,7 @@ centroid_separation`.
 
 ### 4.2 Output di `calculate_clusters_embedding_dataset.py`
 
-Nella cartella `output_dir` (`/home/edofroses/ecg_fm/clustering_metrics_results_datasets_<label_column>`):
+Nella cartella `output_dir` (`Results/clustering_metrics_results_datasets_<label_column>/`):
 
 | File | Contenuto |
 |---|---|
@@ -219,15 +231,30 @@ scipy
 scikit-learn
 ```
 
-## 6. Esecuzione
-
-Prima di eseguire, modificare nel blocco `if __name__ == '__main__':` di
-ciascuno script i valori hard-coded rilevanti per il proprio ambiente:
-`base_path`, `output_dir`, `datasets`, `models_conf` (o `label_column`),
-e il nome della colonna etichetta se diverso da `CD`/il valore di
-`label_column`.
+Nell'ambiente di sviluppo usato per questo repo, queste dipendenze sono
+installate nell'ambiente conda **`imaging_data`**:
 
 ```bash
-python calculate_clusters_embedding_labels.py
-python calculate_clusters_embedding_dataset.py
+conda activate imaging_data
+# oppure, senza attivare la shell:
+conda run -n imaging_data python3 calculate_clusters_embedding_labels.py
 ```
+
+## 6. Esecuzione
+
+1. Assicurarsi che `Data/shap_filtered_datasets/<LABEL>/<model_conf>/...` sia
+   popolata (eventualmente lanciando prima `python organize_data.py` se i
+   dati grezzi sono ancora in `Data/Features_new/`).
+2. Impostare `label_column` in testa al blocco `if __name__ ==
+   '__main__':` dello script scelto, se diverso dal default (`CD` per
+   `calculate_clusters_embedding_labels.py`, `AF` per
+   `calculate_clusters_embedding_dataset.py`).
+3. Eseguire:
+
+```bash
+conda run -n imaging_data python3 calculate_clusters_embedding_labels.py
+conda run -n imaging_data python3 calculate_clusters_embedding_dataset.py
+```
+
+I risultati vengono scritti in `Results/` (creata automaticamente),
+relativa alla posizione degli script.

@@ -205,8 +205,9 @@ def evaluate_centroid_separation(
 if __name__ == '__main__':
     
     label_column = 'AF'
-    base_path = f'/home/edofroses/ecg_fm/shap_filtered_datasets/{label_column}'
-    output_dir = f'/home/edofroses/ecg_fm/clustering_metrics_results_datasets_{label_column}'
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_path = os.path.join(script_dir, 'Data', 'shap_filtered_datasets', label_column)
+    output_dir = os.path.join(script_dir, 'Results', f'clustering_metrics_results_datasets_{label_column}')
     
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -643,12 +644,29 @@ if __name__ == '__main__':
         print(f"\n  ✓ Completed analysis for {model_conf}")
     
     # =================================================================
+    # SAVE OVERALL AND PAIRWISE DATASET SEPARATION RESULTS
+    # =================================================================
+    print(f"\n{'='*80}")
+    print("SAVING DATASET SEPARATION RESULTS (DATASETS AS CLUSTERS, NO LABEL SPLIT)")
+    print(f"{'='*80}\n")
+
+    overall_df = pd.DataFrame(all_results)
+    overall_output = os.path.join(output_dir, 'dataset_overall_separation.csv')
+    overall_df.to_csv(overall_output, index=False)
+    print(f"✓ Overall dataset separation saved to: {overall_output}")
+
+    pairwise_df = pd.DataFrame(pairwise_results)
+    pairwise_output = os.path.join(output_dir, 'dataset_pairwise_comparisons.csv')
+    pairwise_df.to_csv(pairwise_output, index=False)
+    print(f"✓ Pairwise dataset comparisons saved to: {pairwise_output}")
+
+    # =================================================================
     # SAVE FINAL RESULTS - CONFUSION MATRIX STYLE TABLES ONLY
     # =================================================================
     print(f"\n{'='*80}")
     print("GENERATING CONFUSION MATRIX STYLE TABLES (DATASET+LABEL COMPARISONS)")
     print(f"{'='*80}\n")
-    
+
     # Convert results to DataFrame
     pairwise_dl_df = pd.DataFrame(pairwise_dataset_label_results)
     
@@ -677,14 +695,11 @@ if __name__ == '__main__':
                 if metric not in model_data.columns:
                     continue
                 
-                # Initialize matrix with NaN
-                matrix = pd.DataFrame(np.nan, index=all_combos, columns=all_combos)
-                
-                # Fill diagonal with 1.0 or 0.0 depending on metric type
-                if 'ari' in metric or 'knn' in metric:
-                    np.fill_diagonal(matrix.values, 1.0)  # Perfect agreement with self
-                else:
-                    np.fill_diagonal(matrix.values, 0.0)  # Zero distance with self
+                # Initialize matrix with NaN, diagonal set to 1.0 or 0.0 depending on metric type
+                diag_value = 1.0 if ('ari' in metric or 'knn' in metric) else 0.0
+                matrix_values = np.full((len(all_combos), len(all_combos)), np.nan)
+                np.fill_diagonal(matrix_values, diag_value)
+                matrix = pd.DataFrame(matrix_values, index=all_combos, columns=all_combos)
                 
                 # Fill the matrix with pairwise values
                 for _, row in model_data.iterrows():
